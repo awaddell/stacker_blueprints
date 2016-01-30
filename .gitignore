@@ -62,3 +62,12 @@ vm_setup.sh
 # Ignore development conf/env files
 dev.yaml
 dev.env
+
+### Intellij ###
+# Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm
+
+*.iml
+
+## Directory-based project format:
+.idea/
+
