@@ -1,6 +1,6 @@
 # This is an example stacker config for bringing up a "Production Ready"
 # version of Empire (https://github.com/remind101/empire)
-# It brings up 5 stacks:
+# It brings up 7 stacks:
 # - vpc:
 #   Basic vpc definitions, nat hosts, etc
 # - bastion:
@@ -18,6 +18,11 @@
 #   and only allowing access from the same trusted CIDR range defined in
 #   the bastion. It will also create a DNS CNAME in a given External Domain
 #   for the empire API ELB (https://empire.<given domain>)
+# - mysqlMaster:
+#   A MySQL database for backing apps in the Minions
+# - EmpireMinionSecurityRules:
+#   Conveniencee class for adding security groups
+#     https://gist.github.com/phobologic/423ca78c6d9bf012b085
 #
 # Each stack builds whatever security groups, IAM profiles, roles, and
 # policies that they might need.
@@ -37,21 +42,25 @@ pre_build:
 mappings:
   AmiMap:
     us-east-1:
-      NAT: ami-c02b04a8
+      NAT: ami-68115b02
       ubuntu1404: ami-c135f3aa
       empire: ami-7286a018 # https://circleci.com/gh/remind101/empire_ami/63
     us-west-1:
-      NAT: ami-67a54423
+      NAT: ami-ef1a718f
       ubuntu1404: ami-bf3dccfb
       empire: ami-5df7833d # https://circleci.com/gh/remind101/empire_ami/63
     us-west-2:
-      NAT: ami-2dae821d
+      NAT: ami-77a4b816
       ubuntu1404: ami-f15b5dc1
       empire: ami-36a84c56 # https://circleci.com/gh/remind101/empire_ami/63
     eu-west-1:
-      NAT: ami-ef76e898
+      NAT: ami-c0993ab3
       ubuntu1404: ami-47a23a30
       empire: ami-3aad1849 # https://circleci.com/gh/remind101/empire_ami/63
+    eu-central-1:
+      NAT: ami-0b322e67
+      ubuntu1404: ami-86564fea
+      empire: ami-2bccd547
 
 # Many stacks need these settings, or a subset of them, from the VPC -
 # this makes it easy to pass them around. Stacker will drop unused Parameters
@@ -128,6 +137,29 @@ stacks:
       InternalZoneId: vpc::InternalZoneId
       InternalZoneName: vpc::InternalZoneName
       InternalHostname: empire-db
+  - name: mysqlMaster
+    class_path: stacker_blueprints.rds.mysql.MasterInstance
+    parameters:
+      << : *vpc_parameters
+      Subnets: vpc::PrivateSubnets
+      InstanceType: ${db_instance_type}
+      AllowMajorVersionUpgrade: "false"
+      AutoMinorVersionUpgrade: "true"
+      AllocatedStorage: ${storage_size}
+      IOPS: ${iops}
+      InternalZoneName: vpc::InternalZoneName
+      InternalZoneId: vpc::InternalZoneId
+      InternalHostname: ${master_name}
+      DBInstanceIdentifier: ${master_name}
+      DBFamily: ${db_family}
+      EngineVersion: ${engine_version}
+      EngineMajorVersion: ${engine_major_version}
+      StorageEncrypted: ${master_storage_encrypted}
+      # MasterInstance specific
+      MasterUser: ${db_user}
+      MasterUserPassword: ${db_passwd}
+      DatabaseName: ${db_name}
+      MultiAZ: ${db_multi_az}
   - name: empireMinion
     class_path: stacker_blueprints.empire.empire_minion.EmpireMinion
     parameters:
@@ -139,6 +171,12 @@ stacks:
       SshKeyName: ${ssh_key_name}
       ImageName: empire
       DisableStreamingLogs: ${empire_disable_streaming_logs}
+  - name: empireMinionSecurityRules
+    class_path: stacker_blueprints.sg_rules.SecurityGroupRules
+    parameters:
+      << : *vpc_parameters
+      MinionSecurityGroup: empireMinion::EmpireMinionSG
+      MasterAPIDBSecurityGroup: mysqlMaster::SecurityGroup
   - name: empireController
     class_path: stacker_blueprints.empire.empire_controller.EmpireController
     parameters:
