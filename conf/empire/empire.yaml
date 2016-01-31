@@ -160,6 +160,7 @@ stacks:
       MasterUserPassword: ${db_passwd}
       DatabaseName: ${db_name}
       MultiAZ: ${db_multi_az}
+      BackupRetentionPeriod: 30
   - name: empireMinion
     class_path: stacker_blueprints.empire.empire_minion.EmpireMinion
     parameters:
